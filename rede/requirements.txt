@@ -1,6 +1,6 @@
 flask
 flask-limiter
-pandas
+pandas<3
 sqlalchemy
 xlrd
 xlsxwriter
