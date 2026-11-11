@@ -13,11 +13,11 @@ A rotina:
 A rotina NÃO FAZ download dos arquivos do site da Receita. Utilize um gerenciador de downloads.
 Os arquivos zipados da Receita devem ser colocados na definida na variável pasta_compactados.
 Os arquivos descompactados e a base em sqlite serão gerados na pasta definida na variável pasta_saida.
-A utilização da biblioteca DASK tem desempenho melhor do que o uso de PANDAS (quase 10x mais rápido).
+As tabelas grandes são lidas em lotes (pandas chunksize) para limitar o uso de memória.
 """
 
-import pandas as pd, sqlite3, sqlalchemy
-import glob, time, dask.dataframe as dd
+import pandas as pd, sqlite3
+import glob, time
 import os, sys, zipfile
 
 dataReferencia = 'xx/xx/2026' #input('Data de referência da base dd/mm/aaaa: ')
@@ -51,7 +51,6 @@ if len(dataReferenciaAux)==len('D30610') and dataReferenciaAux.startswith('D'):
     anoMes = '202' + dataReferenciaAux.removeprefix('D')[:3]
 	
 engine = sqlite3.connect(cam)
-engine_url = f'sqlite:///{cam}'
 
 #carrega tabelas pequenas e indexa
 def carregaTabelaCodigo(extensaoArquivo, nomeTabela):
@@ -143,16 +142,22 @@ engine.execute(sql)
 sql = sqlCriaTabela('simples', colunas_simples)
 engine.execute(sql)
 
+LINHAS_POR_LOTE = 50_000
+
 def carregaTipo(nome_tabela, tipo, colunas):
-    #usando dask, bem mais rápido que pandas
+    # Lê em lotes de tamanho fixo e grava pela mesma conexão: o pico de memória fica limitado
+    # a um lote. O dask.to_sql lia várias partições à frente da escrita (que é serial no sqlite)
+    # e acumulava tudo na RAM.
     arquivos = sorted(list(glob.glob(os.path.join(pasta_saida, '*' + tipo))))
+    sql_insert = f'INSERT INTO {nome_tabela} VALUES ({",".join("?" * len(colunas))})'
     for arq in arquivos:
         print(f'carregando: {arq=} em {nome_tabela}')
         print('lendo csv ...', time.asctime())
-        ddf = dd.read_csv(arq, sep=';', header=None, names=colunas, encoding='latin1', dtype=str, na_filter=False)
-        #dask possibilita usar curinga no nome de arquivo, por ex: 
-        #ddf = dd.read_csv(pasta_saida+r'\*' + tipo, sep=';', header=None, names=colunas ...
-        ddf.to_sql(nome_tabela, engine_url, index=None, if_exists='append', dtype=sqlalchemy.sql.sqltypes.TEXT)
+        lotes = pd.read_csv(arq, sep=';', header=None, names=colunas, encoding='latin1', dtype=str,
+                            na_filter=False, chunksize=LINHAS_POR_LOTE)
+        for lote in lotes:
+            engine.executemany(sql_insert, lote.itertuples(index=False, name=None))
+            engine.commit()
         if bApagaDescompactadosAposUso:
             print(f'apagando o arquivo {arq=}')
             os.remove(arq)
