@@ -526,11 +526,11 @@ def camadasRede(listaIds=None, camada=1, grupo=None, criterioCaminhos='', bjson=
         CREATE TABLE {tmp}_ligacao AS
             SELECT t.id1, t.id2, t.descricao
             FROM {tmp}_ids tl
-            INNER JOIN rede.ligacao t ON t.id1=tl.identificador
+            CROSS JOIN rede.ligacao t ON t.id1=tl.identificador
             UNION
             SELECT t.id1, t.id2, t.descricao
             FROM {tmp}_ids tl
-            INNER JOIN rede.ligacao t ON t.id2=tl.identificador 
+            CROSS JOIN rede.ligacao t ON t.id2=tl.identificador 
             WHERE t.descricao<>'filial' 
             --este where filial pode causar inconsistência na procura de caminhos por causar assimetria
         
@@ -604,11 +604,11 @@ def camadasRede(listaIds=None, camada=1, grupo=None, criterioCaminhos='', bjson=
                          SELECT distinct * from (
                          SELECT t.id1, t.id2, t.descricao
                          FROM {tmp}_ids tid
-                         INNER JOIN {tabela} t ON  tid.identificador = t.id1
+                         CROSS JOIN {tabela} t ON  tid.identificador = t.id1
                          UNION
                          SELECT t.id1, t.id2, t.descricao
                          FROM {tmp}_ids tid
-                         INNER JOIN {tabela} t ON  tid.identificador = t.id2
+                         CROSS JOIN {tabela} t ON  tid.identificador = t.id2
                          ) tu
                          '''
             con.execute(query)
@@ -1115,13 +1115,13 @@ def camadaLink(listaIds=None, conCNPJ=None, camada=1, numeroItens=15,
         bValorInteiro = False
         query = f''' SELECT * From (
                     SELECT t.id1, t.id2, t.descricao, t.valor
-                    FROM {tabela} t
-                    INNER JOIN {tmp}_ids tl
+                    FROM {tmp}_ids tl
+                    CROSS JOIN {tabela} t
                     ON  tl.identificador = t.id1
                     UNION
                     SELECT t.id1, t.id2, t.descricao, t.valor
-                    FROM {tabela} t
-                    INNER JOIN {tmp}_ids tl
+                    FROM {tmp}_ids tl
+                    CROSS JOIN {tabela} t
                     ON  tl.identificador = t.id2
                      ) ORDER by valor DESC
                     '''
@@ -1635,9 +1635,8 @@ def dadosParaExportar(dados):
                 SELECT * FROM -- distinct * from
     				(SELECT t.cnpj, te.razao_social, t.cnpj_cpf_socio, t.nome_socio, sq.descricao as cod_qualificacao, 
                      t.data_entrada_sociedade, t.pais, tpais.descricao as pais_, t.representante_legal, t.nome_representante, t.qualificacao_representante_legal, sq2.descricao as qualificacao_representante_legal_, t.faixa_etaria
-                FROM cnpj.socios t
-                --INNER JOIN tmp_cnpjs tl ON  tl.cnpj = t.cnpj
-                INNER JOIN {tmp}_cpfpjnomes tl ON  tl.cpfpj = t.cnpj
+                FROM {tmp}_cpfpjnomes tl
+                CROSS JOIN cnpj.socios t ON  tl.cpfpj = t.cnpj
                 left join cnpj.estabelecimento tt on tt.cnpj=t.cnpj
                 LEFT JOIN cnpj.empresas te on te.cnpj_basico=tt.cnpj_basico
                 LEFT JOIN cnpj.qualificacao_socio sq ON sq.codigo=t.qualificacao_socio
@@ -1647,8 +1646,8 @@ def dadosParaExportar(dados):
                 UNION
                 SELECT t.cnpj, te.razao_social, t.cnpj_cpf_socio, t.nome_socio, sq.descricao as cod_qualificacao,
                     t.data_entrada_sociedade, t.pais, tpais.descricao as pais_, t.representante_legal, t.nome_representante, t.qualificacao_representante_legal, sq2.descricao as qualificacao_representante_legal_, t.faixa_etaria
-                FROM cnpj.socios t
-                INNER JOIN {tmp}_cpfpjnomes tl ON tl.cpfpj = t.cnpj_cpf_socio
+                FROM {tmp}_cpfpjnomes tl
+                CROSS JOIN cnpj.socios t ON tl.cpfpj = t.cnpj_cpf_socio
                 left join cnpj.estabelecimento tt on tt.cnpj=t.cnpj
                 LEFT JOIN cnpj.empresas te on te.cnpj_basico=tt.cnpj_basico
                 LEFT JOIN cnpj.qualificacao_socio sq ON sq.codigo=t.qualificacao_socio
